@@ -118,7 +118,7 @@ bot.start(async (ctx) => {
                 }
 
                 if (!video) {
-                    const sentMessage = await ctx.reply(`❌ Video with ID '${videoId}' not found.`);
+                    const sentMessage = await ctx.reply(`❌ Video with ID  '${videoId}' not found.`);
                     deleteMessageAfter(ctx, sentMessage.message_id, 120);
                     return;
                 }
