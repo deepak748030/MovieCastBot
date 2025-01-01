@@ -136,8 +136,7 @@ bot.start(async (ctx) => {
                             ]
                         ]
                     },
-                    disable_notification: true,
-                    protect_content: true
+                    disable_notification: true
                 });
 
                 // Delete the message after 2 minutes
@@ -173,7 +172,7 @@ bot.start(async (ctx) => {
         }
     } else {
         const sentMessage = await ctx.reply(
-            `🎬 <b>Welcome to Film-Mela Bot!</b> 🎥\n\n🌟 <i>Your gateway to amazing movies and entertainment.</i>\n\n👇 Explore now!`,
+            `🎬 <b>Welcome to Movie-Cast Bot!</b> 🎥\n\n🌟 <i>Your gateway to amazing movies and entertainment.</i>\n\n👇 Explore now!`,
             {
                 parse_mode: 'HTML',
                 reply_markup: {
