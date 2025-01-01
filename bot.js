@@ -132,7 +132,7 @@ bot.start(async (ctx) => {
                     reply_markup: {
                         inline_keyboard: [
                             [
-                                { text: '▶️ Watch Movie', url: `https://t.me/filmpuradda` }
+                                { text: '▶️ Watch Movie', url: `https://t.me/moviecastmovie` }
                             ]
                         ]
                     },
@@ -180,7 +180,7 @@ bot.start(async (ctx) => {
                     inline_keyboard: [
                         [
                             { text: '🌐 Updates ', url: 'https://t.me/filmmelaupdates' },
-                            { text: '🎞️ View Movies', url: 'https://t.me/filmpuradda' }
+                            { text: '🎞️ View Movies', url: 'https://t.me/moviecastmovie' }
                         ]
                     ]
                 }
