@@ -4,7 +4,6 @@ const mongoose = require('mongoose');
 const NodeCache = require('node-cache');
 const { Video } = require('./models/video'); // Assuming you have a Video model
 dotenv.config();
-hello
 const cache = new NodeCache(); // Cache TTL set to 10 minutes
 const userCache = new NodeCache({ stdTTL: 86400 });
 
