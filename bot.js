@@ -101,10 +101,10 @@ bot.start(async (ctx) => {
     const callbackData = message ? message.text : callbackQuery.data;
 
     if (callbackData.startsWith('/start watch_')) {
-        const chatMember = await ctx.telegram.getChatMember('@filmmelaupdates', ctx.from.id);
+        // const chatMember = await ctx.telegram.getChatMember('@moviecastmovie', ctx.from.id);
         const videoId = callbackData.split('_')[1]; // Extract video ID from the callback data
         try {
-            if (chatMember.status === 'member' || chatMember.status === 'administrator' || chatMember.status === 'creator') {
+            if (1 == 1) {
 
                 const cachedVideo = cache.get(videoId);
                 let video;
@@ -124,7 +124,7 @@ bot.start(async (ctx) => {
                 }
 
                 // Add "Join ➥ @filmmelaupdates" to the end of the caption
-                const captionWithLink = `🎥 <b>${video.title || "NOT AVAILABLE"}    📦 <b>SIZE:</b> ${bytesToMB(video.size)} </b>\n\n⚠️ <b>NOTE:</b> This video will be deleted after 10 minutes.\n\n✨ <i>Join ➥</i> @filmmelaupdates`;
+                const captionWithLink = `🎥 <b>${video.caption || "NOT AVAILABLE"}    📦 <b>SIZE:</b> ${bytesToMB(video.size)} </b>\n\n⚠️ <b>NOTE:</b> This video will be deleted after 10 minutes.\n\n✨ <i>Join ➥</i> @filmmelaupdates`;
                 // Send the video file to the user
                 const sentMessage = await ctx.replyWithVideo(video.fileId, {
                     caption: `${captionWithLink}`,
