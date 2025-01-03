@@ -1,12 +1,15 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const bot = require('../bot'); // Adjust the path if necessary
+const connectToMongoDB = require('../db/Db'); // Adjust the path if necessary
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Connect to MongoDB
+connectToMongoDB();
 
 // Middleware
 app.use(express.json());
@@ -28,24 +31,7 @@ app.use((err, req, res, next) => {
     res.status(500).send('Something went wrong!');
 });
 
-// Ensure MongoDB connection is established once
-let dbConnection;
-
-const connectToMongoDB = async () => {
-    if (!dbConnection) {
-        try {
-            dbConnection = await mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
-            console.log('Connected to MongoDB');
-        } catch (err) {
-            console.error('Failed to connect to MongoDB:', err);
-        }
-    }
-    return dbConnection;
-};
-
-app.listen(PORT, async () => {
-    await connectToMongoDB();
+app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
 });
 
-module.exports = app;

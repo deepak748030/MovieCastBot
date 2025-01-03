@@ -1,43 +1,18 @@
 const { Telegraf, Markup } = require('telegraf');
 const dotenv = require('dotenv');
-const mongoose = require('mongoose');
 const NodeCache = require('node-cache');
 const { Video } = require('./models/video'); // Assuming you have a Video model
 dotenv.config();
 const cache = new NodeCache(); // Cache TTL set to 10 minutes
 const userCache = new NodeCache({ stdTTL: 86400 });
+const { bytesToMB, truncateText } = require('./utils/videoUtils');
+const { deleteMessageAfter } = require('./utils/telegramUtils');
+const { storeVideoData, cleanCaption } = require('./utils/textUtils');
+const scrap = require('./scraper/scrap');
 
 //admins
 const allowedUsers = ["knox7489", "vixcasm", "Knoxbros"];
-// hello
-let dbConnection;
-const connectToMongoDB = async () => {
-    if (!dbConnection) {
-        try {
-            dbConnection = await mongoose.connect(process.env.MONGODB_URI);
-            console.log('Connected to MongoDB');
-        } catch (err) {
-            console.error('Failed to connect to MongoDB:', err);
-        }
-    }
-    return dbConnection;
-};
-
-connectToMongoDB(); // Ensure the connection is established when the bot is initialized
-
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
-
-// Function to convert bytes to MB
-const bytesToMB = (bytes) => {
-    if (bytes === 0) return '0 MB';
-    const mb = bytes / (1024 * 1024);
-    return mb.toFixed(2) + ' MB';
-};
-
-// Function to truncate text to a specified length
-const truncateText = (text, maxLength) => {
-    return text.length > maxLength ? text.substring(0, maxLength - 3) + "..." : text;
-};
 
 // Function to generate inline keyboard buttons for a specific page
 const generateButtons = (videos, page, totalPages) => {
@@ -70,25 +45,9 @@ const generateButtons = (videos, page, totalPages) => {
 
     return buttons;
 };
-// retry 
-// Function to delete messages after a specified time
-const deleteMessageAfter = (ctx, messageId, seconds) => {
-    setTimeout(async () => {
-        try {
-            if (ctx.message && ctx.message.chat) {
-                await ctx.telegram.deleteMessage(ctx.message.chat.id, messageId);
-            } else {
-                console.warn('Message or chat is undefined. Cannot delete message.');
-            }
-        } catch (error) {
-            console.error('Error deleting message:', error);
-        }
-    }, seconds * 1000); // Convert seconds to milliseconds
-};
 
 // Handle /start command with specific video ID
 bot.start(async (ctx) => {
-
     const userId = ctx.from.id;
     const username = ctx.from.username || "NoUsername";
     const name = ctx.from.first_name || ctx.from.last_name || "Anonymous";
@@ -104,14 +63,12 @@ bot.start(async (ctx) => {
         const videoId = callbackData.split('_')[1]; // Extract video ID from the callback data
         try {
             if (1 == 1) {
-                await ctx.reply(`❌ Video with ID  '${videoId}' not found.`);
                 const cachedVideo = cache.get(videoId);
                 let video;
                 if (cachedVideo) {
                     video = cachedVideo;
                 } else {
                     video = await Video.findById(videoId);
-                    await ctx.reply(`'${video}'`);
                     if (video) {
                         cache.set(videoId, video);
                     }
@@ -187,49 +144,12 @@ bot.start(async (ctx) => {
         );
 
         // Delete the message after 2 minutes
-        deleteMessageAfter(ctx, message ? message.message_id : callbackQuery.message.message_id, 120);
+        deleteMessageAfter(ctx, sentMessage ? sentMessage.message_id : callbackQuery.sentMessage.message_id, 30);
     }
 });
-
-
-bot.command("allusers", (ctx) => {
-
-    if (!allowedUsers.includes(ctx.from.username)) {
-        ctx.reply("❌ You are not an admin, so you don't have permission to access this.");
-        return;
-    }
-
-    const allUsers = userCache.keys().map((key) => {
-        const user = userCache.get(key);
-        return { id: key, name: user.name, username: user.username };
-    });
-
-    if (allUsers.length === 0) {
-        // Reply with a simple message and emoji
-        ctx.reply("🚫 No active users found in the last 24 hours.");
-    } else {
-        const totalUsers = allUsers.length;
-        const userTable = allUsers
-            .map((user, index) => {
-                return `#️⃣ <b>${index + 1}</b>\n👤 <b>Name:</b> ${user.name}\n💻 <b>Username:</b> @${user.username}\n🆔 <b>User ID:</b> ${user.id}\n`;
-            })
-            .join("\n──────────\n");
-
-        // Reply with the user list and total count
-        ctx.reply(
-            `🎉 <b>Total Active Users in the Last 24 Hours:</b> <b>${totalUsers}</b> 🟢\n\n` +
-            `📝 <b>User List:</b>\n${userTable}`,
-            { parse_mode: "HTML" }
-        );
-    }
-});
-
-
-
-
 
 // Telegram bot handlers
-bot.command("moviecounts", async (ctx) => {
+bot.command("totalmovies", async (ctx) => {
     try {
         const count = await Video.countDocuments();
 
@@ -270,15 +190,37 @@ bot.command("moviecounts", async (ctx) => {
     }
 });
 
+bot.command("scrap", async (ctx) => {
+    try {
+        const args = ctx.message.text.split(" ");
+        const [_, scrapFromChannel, sendToChannel] = args;
+
+        if (!scrapFromChannel || !sendToChannel) {
+            await ctx.reply("⚠️ Please provide both source and destination channels. Example: /scrap <source_channel> <destination_channel>");
+            return;
+        }
+
+        console.log(`Scraping from: ${scrapFromChannel}, Sending to: ${sendToChannel}`);
+        await scrap(ctx, scrapFromChannel, sendToChannel);
+
+        await ctx.reply("✅ Scraping started. Check logs for progress.");
+    } catch (error) {
+        console.error("Error executing scrap command:", error);
+        await ctx.reply("⚠️ Failed to execute scrap command. Please try again later.");
+    }
+});
+
+
+
 bot.on("text", async (ctx) => {
     const movieName = ctx.message.text.trim();
     const username = ctx.from.first_name || ctx.from.username || "user";
 
     try {
-        if (!movieName) {
+        if (!movieName || movieName.length < 3) {
             await ctx.reply(
-                "❌ <b>Please enter a valid movie name!</b>\n" +
-                "💡 *Hint*: Type the name of the movie you want to search for.",
+                "❌ <b>Please enter a valid movie name!</b>\n\n" +
+                "💡 <i>Hint: Type the name of the movie you want to search for.</i>",
                 { parse_mode: "HTML", reply_to_message_id: ctx.message.message_id }
             );
             return;
@@ -390,34 +332,10 @@ bot.action(/prev_(\d+)/, async (ctx) => {
     await ctx.answerCbQuery();
 });
 
-// Function to store video data in MongoDB
-const storeVideoData = async (fileId, caption, size) => {
-    const video = new Video({
-        fileId: fileId,
-        caption: caption,
-        size: size
-    });
-    await video.save();
-    return video;
-};
-
-// Function to clean the caption by removing unwanted elements
-const cleanCaption = (caption) => {
-    // Remove links, special characters, stickers, emojis, extra spaces, and mentions except "@MovieCastAgainBot"
-    return caption
-        .replace(/(?:https?|ftp):\/\/[\n\S]+/g, "") // Remove URLs
-        .replace(/[^\w\s@.]/g, "") // Remove special characters except "@" and "."
-        .replace(/\./g, " ") // Replace dots with a single space
-        .replace(/\s\s+/g, " ") // Replace multiple spaces with a single space
-        .replace(/@[A-Za-z0-9_]+/g, "@MovieCastAgainBot") // Replace all mentions with "@MovieCastAgainBot"
-        .trim();
-};
-
 bot.on("video", async (ctx) => {
     const { message } = ctx.update;
 
     try {
-
         if (!allowedUsers.includes(ctx.from.username)) {
             await ctx.reply("❌ You are not authorized to upload videos.");
             return;
@@ -442,17 +360,10 @@ bot.on("video", async (ctx) => {
 
         // Store video data in MongoDB
         const videos = await storeVideoData(videoFileId, caption, videoSize);
-
-        // Send success message for admin users
-        await ctx.reply("🎉 Video uploaded successfully.");
-
-        // Generate and share the video link
-        const videoLink = `https://t.me/${process.env.BOT_USERNAME}?start=watch_${videos._id}`;
-        await ctx.reply(
-            `🎥 <b>Video Uploaded Successfully</b> ✅\n\n` +
-            `🔗 <b>Watch it here:</b> <a href="${videoLink}">${videoLink}</a>`,
-            { parse_mode: "HTML" }
-        );
+        if (videos) {
+            const sendmessage = await ctx.reply("🎉 Video uploaded successfully.");
+            deleteMessageAfter(ctx, sendmessage.message_id, 1);
+        }
 
         // Auto-delete the message after 2 minutes
         deleteMessageAfter(ctx, message.message_id, 120);
@@ -468,27 +379,12 @@ bot.on("video", async (ctx) => {
     }
 });
 
-// Middleware to reset TTL on any interaction
-bot.use((ctx, next) => {
-    const userId = ctx.from.id;
-    console.log('run');
-    // If user exists in cache, reset TTL
-    if (userCache.has(userId)) {
-        userCache.ttl(userId, 86400); // Reset TTL to 24 hours
-    } else {
-        // Add user to cache if not already stored
-        const username = ctx.from.username || "NoUsername";
-        const name = ctx.from.first_name || ctx.from.last_name || "Anonymous";
-        userCache.set(userId, { username, name });
-    }
 
-    return next();
+
+
+bot.launch().then(() => {
+    console.log('Bot started');
 });
-
-// bot.launch().then(() => {
-//     console.log('Bot started');
-// });
-
 
 // Catch Telegraf errors
 bot.catch((err, ctx) => {
