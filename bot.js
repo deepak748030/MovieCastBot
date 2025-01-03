@@ -104,13 +104,14 @@ bot.start(async (ctx) => {
         const videoId = callbackData.split('_')[1]; // Extract video ID from the callback data
         try {
             if (1 == 1) {
-
+                await ctx.reply(`❌ Video with ID  '${videoId}' not found.`);
                 const cachedVideo = cache.get(videoId);
                 let video;
                 if (cachedVideo) {
                     video = cachedVideo;
                 } else {
                     video = await Video.findById(videoId);
+                    await ctx.reply(`'${video}'`);
                     if (video) {
                         cache.set(videoId, video);
                     }
