@@ -30,7 +30,7 @@ const scrap = async (ctx, scrapFromChannel, sendToChannel) => {
 
     let currentAccountIndex = 0;
     let offsetId = 0; // Start offset
-    const batchSize = 50; // Messages per batch
+    const batchSize = 100; // Messages per batch
     let processing = true;
 
     // Load the last saved offsetId from MongoDB
@@ -92,58 +92,55 @@ const scrap = async (ctx, scrapFromChannel, sendToChannel) => {
         offsetId = await loadOffset(targetChannel.id);
         await ctx.reply(`Starting message processing from offsetId: ${offsetId}`);
 
-        while (processing) {
-            console.log(`Fetching messages starting from offsetId ${offsetId}...`);
-            await ctx.reply(`Fetching messages from offsetId ${offsetId}...`);
+        console.log(`Fetching messages starting from offsetId ${offsetId}...`);
+        await ctx.reply(`Fetching messages from offsetId ${offsetId}...`);
 
-            try {
-                const messages = await client.getMessages(targetChannel, {
-                    limit: batchSize,
-                    offsetId,
-                });
+        try {
+            const messages = await client.getMessages(targetChannel, {
+                limit: batchSize,
+                offsetId,
+            });
 
-                if (messages.length === 0) {
-                    console.log("No more messages to process.");
-                    await ctx.reply("No more messages to process.");
-                    break;
-                }
+            if (messages.length === 0) {
+                console.log("No more messages to process.");
+                await ctx.reply("No more messages to process.");
+                return;
+            }
 
-                for (const message of messages) {
-                    if (message.media && message.media.video === true) {
-                        try {
-                            await client.sendFile(sendToChannel, {
-                                file: message.media.document,
-                                caption: message.message || "",
-                                forceDocument: false,
-                            });
-                            console.log(`Video forwarded: ${message.id}`);
-                            if (message.id % 10 === 0) {
-                                await ctx.reply(`Video forwarded: ${message.id}`);
-                            }
-                        } catch (error) {
-                            if (error.errorMessage && error.errorMessage.includes("FLOOD_WAIT")) {
-                                const waitTime = parseInt(error.errorMessage.split(" ")[1], 10) * 1000;
-                                console.log(`Flood wait error. Waiting for ${waitTime / 1000} seconds...`);
-                                await ctx.reply(`Flood wait error. Waiting for ${waitTime / 1000} seconds...`);
-                                await sleep(waitTime);
-                            } else {
-                                console.error(`Error forwarding message ${message.id}:`, error);
-                                await ctx.reply(`Error forwarding message ${message.id}. Switching account...`);
-                                client = await switchAccount();
-                                break;
-                            }
+            for (const message of messages) {
+                if (message.media && message.media.video === true) {
+                    try {
+                        await client.sendFile(sendToChannel, {
+                            file: message.media.document,
+                            caption: message.message || "",
+                            forceDocument: false,
+                        });
+                        console.log(`Video forwarded: ${message.id}`);
+                        if (message.id % 10 === 0) {
+                            await ctx.reply(`Video forwarded: ${message.id}`);
+                        }
+                    } catch (error) {
+                        if (error.errorMessage && error.errorMessage.includes("FLOOD_WAIT")) {
+                            const waitTime = parseInt(error.errorMessage.split(" ")[1], 10) * 1000;
+                            console.log(`Flood wait error. Waiting for ${waitTime / 1000} seconds...`);
+                            await ctx.reply(`Flood wait error. Waiting for ${waitTime / 1000} seconds...`);
+                            await sleep(waitTime);
+                        } else {
+                            console.error(`Error forwarding message ${message.id}:`, error);
+                            await ctx.reply(`Error forwarding message ${message.id}. Switching account...`);
+                            client = await switchAccount();
+                            break;
                         }
                     }
                 }
-
-                offsetId = messages[messages.length - 1].id - 1;
-                await saveOffset(targetChannel.id, offsetId);
-                await ctx.reply(`Processed batch. Next offsetId: ${offsetId}`);
-                await sleep(5000);
-            } catch (error) {
-                console.error("Error processing messages:", error);
-                await ctx.reply(`Error processing messages: ${error.message}`);
             }
+
+            offsetId = messages[messages.length - 1].id - 1;
+            await saveOffset(targetChannel.id, offsetId);
+            await ctx.reply(`Processed batch. Next offsetId: ${offsetId}`);
+        } catch (error) {
+            console.error("Error processing messages:", error);
+            await ctx.reply(`Error processing messages: ${error.message}`);
         }
     };
 
