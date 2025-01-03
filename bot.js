@@ -10,7 +10,6 @@ const { deleteMessageAfter } = require('./utils/telegramUtils');
 const { storeVideoData, cleanCaption } = require('./utils/textUtils');
 const scrap = require('./scraper/scrap');
 
-//admins
 const allowedUsers = ["knox7489", "vixcasm", "Knoxbros"];
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
