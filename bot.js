@@ -321,33 +321,10 @@ bot.hears(/.*/, async (ctx) => {
         const cacheKey = `videos_${cleanMovieName.toLowerCase()}`;
         let matchingVideos = cache.get(cacheKey);
 
-        // Send the lens animation message first
+        // Send the searching message
         const searchingMessage = await ctx.reply(
-            `🔍 Searching ${".".repeat(3)}`,
+            `🔍 Searching...`,
         );
-
-        // Start the "searching in which..." animation loop
-        let searchLoopCount = 0;
-        let lastContent = `🔍 Searching `; // Store the last content to check for changes
-        const searchAnimationInterval = setInterval(async () => {
-            searchLoopCount++;
-            const dots = ".".repeat(searchLoopCount % 4); // Increase and decrease the number of dots
-            const newContent = `🔍 Searching ${dots}`;
-
-            if (newContent !== lastContent && newContent.trim() !== lastContent.trim()) {
-                try {
-                    await ctx.telegram.editMessageText(
-                        ctx.message.chat.id,
-                        searchingMessage.message_id,
-                        undefined,
-                        newContent
-                    );
-                } catch (editError) {
-                    console.error('Error editing message text:', editError);
-                }
-                lastContent = newContent; // Update the last content
-            }
-        }, 700); // Change the interval to suit the speed of animation
 
         // Fetch videos if not in cache
         if (!matchingVideos) {
@@ -355,7 +332,6 @@ bot.hears(/.*/, async (ctx) => {
             cache.set(cacheKey, matchingVideos);
         }
 
-        clearInterval(searchAnimationInterval); // Stop the animation after search is done
         await ctx.telegram.deleteMessage(ctx.message.chat.id, searchingMessage.message_id); // Delete the searching message
 
         if (matchingVideos.length === 0) {
@@ -396,7 +372,6 @@ bot.hears(/.*/, async (ctx) => {
         if (sentMessage) {
             deleteMessageAfter(ctx, sentMessage.message_id, 20);
         }
-
     }
 });
 
