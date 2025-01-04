@@ -13,13 +13,14 @@ const { message } = require('telegram/client');
 // const scrap = require('./scraper/scrap');
 
 const allowedUsers = ["knox7489", "vixcasm", "Knoxbros"];
-const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
-bot.telegram.setOptions({
-    retry: {
-        retries: 2,            // Set the number of retries
-        factor: 2,             // Exponential factor for retry delay
-        minTimeout: 1,      // Minimum delay in milliseconds (1 second)
-        maxTimeout: 120000     // Maximum delay in milliseconds (30 seconds)
+const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN, {
+    telegram: {
+        retry: {
+            retries: 2,            // Set the number of retries
+            factor: 2,             // Exponential factor for retry delay
+            minTimeout: 1000,      // Minimum delay in milliseconds (1 second)
+            maxTimeout: 120000     // Maximum delay in milliseconds (2 minutes)
+        }
     }
 });
 
