@@ -309,7 +309,8 @@ bot.on("video", async (ctx) => {
 });
 
 
-bot.hears(/.*/, async (ctx) => {
+
+bot.on("text", async (ctx) => {
     const movieName = ctx.message.text.trim();
     const username = ctx.from.first_name || ctx.from.username || "user";
 
@@ -328,8 +329,6 @@ bot.hears(/.*/, async (ctx) => {
         const searchPattern = cleanMovieName.split(/\s+/).map(word => `(?=.*${word})`).join("");
         const regex = new RegExp(`${searchPattern}`, "i");
 
-        const reply = ctx.reply("🔍 <b>Searching...</b>", { parse_mode: "HTML" });
-
         const cacheKey = `videos_${cleanMovieName.toLowerCase()}`;
         let matchingVideos = cache.get(cacheKey);
 
@@ -338,7 +337,7 @@ bot.hears(/.*/, async (ctx) => {
             matchingVideos = await Video.find({ caption: { $regex: regex } }).sort({ caption: -1 });
             cache.set(cacheKey, matchingVideos);
         }
-        reply && deleteMessageAfter(ctx, reply.message_id, .001); // Changed to 10 seconds
+
         if (matchingVideos.length === 0) {
             await ctx.reply(
                 `❌ <b>Sorry, ${username}!</b>\n` +
@@ -364,9 +363,7 @@ bot.hears(/.*/, async (ctx) => {
         );
 
         // Automatically delete the message after 2 minutes
-        if (sentMessage) {
-            deleteMessageAfter(ctx, sentMessage.message_id, 60);
-        }
+        deleteMessageAfter(ctx, sentMessage.message_id, 60);
     } catch (error) {
         console.error("Error searching for videos:", error);
         const sentMessage = await ctx.reply(
@@ -374,11 +371,11 @@ bot.hears(/.*/, async (ctx) => {
             "❌ Failed to search for videos. Please try again later.",
             { parse_mode: "HTML", reply_to_message_id: ctx.message.message_id }
         );
-        if (sentMessage) {
-            deleteMessageAfter(ctx, sentMessage.message_id, 20);
-        }
+
+        deleteMessageAfter(ctx, sentMessage.message_id, 20);
     }
 });
+
 
 
 
@@ -468,9 +465,9 @@ const generateButtons = (videos, page, totalPages, cleanMovieName) => {
 
 
 
-// bot.launch().then(() => {
-//     console.log('Bot started');
-// });
+bot.launch().then(() => {
+    console.log('Bot started');
+});
 
 // Catch Telegraf errors
 bot.catch((err, ctx) => {
