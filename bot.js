@@ -319,7 +319,7 @@ bot.hears(/.*/, async (ctx) => {
         const searchPattern = cleanMovieName.split(/\s+/).map(word => `(?=.*${word})`).join("");
         const regex = new RegExp(`${searchPattern}`, "i");
 
-        const reply = await ctx.reply("🔍 <b>Searching...</b>", { parse_mode: "HTML" });
+        const reply = ctx.reply("🔍 <b>Searching...</b>", { parse_mode: "HTML" });
 
         const cacheKey = `videos_${cleanMovieName.toLowerCase()}`;
         let matchingVideos = cache.get(cacheKey);
