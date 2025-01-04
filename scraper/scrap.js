@@ -13,7 +13,10 @@ const Offset = mongoose.model("Offset", offsetSchema);
 const scrap = async (ctx, scrapFromChannel, sendToChannel, startFrom, noOfvideos) => {
     scrapFromChannel = scrapFromChannel.replace(/_/g, ' ');
     sendToChannel = sendToChannel.replace(/_/g, ' ');
-    console.log('data --------------', scrapFromChannel, sendToChannel, noOfvideos, startFrom)
+    console.log('data --------------', scrapFromChannel,)
+    console.log(sendToChannel)
+    console.log(noOfvideos)
+    console.log(startFrom)
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     console.log(scrapFromChannel, sendToChannel)
     const accounts = [

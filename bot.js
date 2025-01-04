@@ -123,7 +123,23 @@ bot.start(async (ctx) => {
             }
         } catch (error) {
             console.error(`Error fetching video with ID '${videoId}':`, error);
-            const sentMessage = await ctx.reply(`⚠️ Failed to fetch video. Please try again later.`);
+            const sentMessage = await ctx.reply(
+                `⚠️ <b>Oops!</b> Something went wrong. 😟\n\n` +
+                `❌ <i>We couldn’t fetch the video. Please try again later.</i>`,
+                {
+                    parse_mode: 'HTML',
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                {
+                                    text: '🔄Retry',
+                                    url: `https://t.me/Filmmela1bot?start=watch_${videoId}`,
+                                },
+                            ]
+                        ]
+                    }
+                }
+            );
             deleteMessageAfter(ctx, sentMessage.message_id, 120);
         }
     } else {
