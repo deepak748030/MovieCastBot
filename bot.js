@@ -205,7 +205,7 @@ bot.command("totalmovies", async (ctx) => {
     }
 });
 
-// bot.command("scrap", async (ctx) => {
+
 //     try {
 //         const args = ctx.message.text.split(" ");
 //         const [_, scrapFromChannel, sendToChannel, startFrom, noOfvideos] = args;
@@ -399,12 +399,12 @@ function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// bot.command("scrap", async (ctx) => {
 
 
-
-bot.launch().then(() => {
-    console.log('Bot started');
-});
+// bot.launch().then(() => {
+//     console.log('Bot started');
+// });
 
 // Catch Telegraf errors
 bot.catch((err, ctx) => {
