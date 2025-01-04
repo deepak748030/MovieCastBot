@@ -3,7 +3,7 @@ const dotenv = require('dotenv');
 const NodeCache = require('node-cache');
 const { Video } = require('./models/video'); // Assuming you have a Video model
 dotenv.config();
-const cache = new NodeCache(); // Cache TTL set to 10 minutes
+const cache = new NodeCache();
 const userCache = new NodeCache({ stdTTL: 86400 });
 const { bytesToMB, truncateText } = require('./utils/videoUtils');
 const { deleteMessageAfter } = require('./utils/telegramUtils');
@@ -12,38 +12,7 @@ const { storeVideoData, cleanCaption } = require('./utils/textUtils');
 
 const allowedUsers = ["knox7489", "vixcasm", "Knoxbros"];
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
-// this 
-// Function to generate inline keyboard buttons for a specific page
-const generateButtons = (videos, page, totalPages) => {
-    const maxButtonsPerPage = 8;
-    const startIndex = (page - 1) * maxButtonsPerPage;
-    const endIndex = Math.min(startIndex + maxButtonsPerPage, videos.length);
 
-    const buttons = videos.slice(startIndex, endIndex).map(video => {
-        const sizeMB = bytesToMB(video.size);
-        const truncatedCaption = truncateText(video.caption, 30); // Truncate the caption to 30 characters
-        const videoLink = `https://t.me/${process.env.BOT_USERNAME}?start=watch_${video._id}`;
-
-        return [
-            Markup.button.url(`${truncatedCaption} ${sizeMB != 'NaN MB' ? `📦 [${sizeMB}]` : ''}`, videoLink)
-        ];
-    });
-
-    // Add navigation buttons with emojis for "Prev" and "Next"
-    const navigationButtons = [];
-    if (page > 1) {
-        navigationButtons.push(Markup.button.callback('⬅️ Prev', `prev_${page}`)); // Use left arrow for "Prev"
-    }
-    if (page < totalPages) {
-        navigationButtons.push(Markup.button.callback('Next ➡️', `next_${page}`)); // Use right arrow for "Next"
-    }
-
-    if (navigationButtons.length > 0) {
-        buttons.push(navigationButtons);
-    }
-
-    return buttons;
-};
 
 // Handle /start command with specific video ID
 bot.start(async (ctx) => {
@@ -164,47 +133,61 @@ bot.start(async (ctx) => {
 
 // Telegram bot handlers
 bot.command("totalmovies", async (ctx) => {
-    try {
-        const count = await Video.countDocuments();
+    const cacheKey = 'total_movies_count';
+    let count = cache.get(cacheKey);
+    const startTime = Date.now();
+    if (!count) {
+        try {
 
-        // Fancy response message
-        const sentMessage = await ctx.reply(
-            `🎥 <b>Total Movies in Our Collection</b> 🎬\n\n` +
-            `📁 <i>Movies Count:</i> <b>${count}</b>\n\n` +
-            `✨ <i>Discover amazing films and enjoy unlimited entertainment!</i>`,
-            {
-                parse_mode: "HTML",
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            { text: "🌟 Explore Movies 🌟", url: "https://yourwebsite.com/movies" }
-                        ]
-                    ]
+            count = await Video.countDocuments();
+
+
+            cache.set(cacheKey, count, 86400); // Cache for 24 hours
+        } catch (error) {
+            console.error("Error fetching movie count:", error);
+
+            // Error response message
+            const sentMessage = await ctx.reply(
+                `⚠️ <b>Oops!</b> Something went wrong. 😟\n\n` +
+                `❌ <i>We couldn’t fetch the movie count. Please try again later.</i>`,
+                {
+                    parse_mode: "HTML",
                 }
-            }
-        );
+            );
 
-        // Delete the message after 2 minutes
-        deleteMessageAfter(ctx, sentMessage.message_id, 120);
-
-    } catch (error) {
-        console.error("Error fetching movie count:", error);
-
-        // Error response message
-        const sentMessage = await ctx.reply(
-            `⚠️ <b>Oops!</b> Something went wrong. 😟\n\n` +
-            `❌ <i>We couldn’t fetch the movie count. Please try again later.</i>`,
-            {
-                parse_mode: "HTML",
-            }
-        );
-
-        // Delete the message after 2 minutes
-        deleteMessageAfter(ctx, sentMessage.message_id, 120);
+            // Delete the message after 2 minutes
+            deleteMessageAfter(ctx, sentMessage.message_id, 120);
+            return;
+        }
+    } else {
+        console.log('Cache hit. Returning cached count.');
     }
+    const endTime = Date.now();
+    const cacheTime = endTime - startTime;
+
+    console.log(`Cache miss. Time taken to fetch count: ${cacheTime}ms`);
+    // Fancy response message
+    const sentMessage = await ctx.reply(
+        `🎥 <b>Total Movies in Our Collection</b> 🎬\n\n` +
+        `📁 <i>Movies Count:</i> <b>${count}</b>\n\n` +
+        `✨ <i>Discover amazing films and enjoy unlimited entertainment!</i>`,
+        {
+            parse_mode: "HTML",
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: "🌟 Explore Movies 🌟", url: "https://yourwebsite.com/movies" }
+                    ]
+                ]
+            }
+        }
+    );
+
+    // Delete the message after 2 minutes
+    deleteMessageAfter(ctx, sentMessage.message_id, 120);
 });
 
-
+// bot.command("scrap", async (ctx) => {
 //     try {
 //         const args = ctx.message.text.split(" ");
 //         const [_, scrapFromChannel, sendToChannel, startFrom, noOfvideos] = args;
@@ -224,127 +207,6 @@ bot.command("totalmovies", async (ctx) => {
 //     }
 // });
 
-
-
-bot.on("text", async (ctx) => {
-    const movieName = ctx.message.text.trim();
-    const username = ctx.from.first_name || ctx.from.username || "user";
-
-    try {
-        if (!movieName || movieName.length < 3) {
-            await ctx.reply(
-                "❌ <b>Please enter a valid movie name!</b>\n\n" +
-                "💡 <i>Hint: Type the name of the movie you want to search for.</i>",
-                { parse_mode: "HTML", reply_to_message_id: ctx.message.message_id }
-            );
-            return;
-        }
-
-        // Clean and prepare movie name for regex search
-        const cleanMovieName = movieName.replace(/[^\w\s]/gi, "").replace(/\s\s+/g, " ").replace(/\*/g, "").trim();
-        const searchPattern = cleanMovieName.split(/\s+/).map(word => `(?=.*${word})`).join("");
-        const regex = new RegExp(`${searchPattern}`, "i");
-
-        // Find matching videos with regex
-        const matchingVideos = await Video.find({ caption: { $regex: regex } }).sort({ caption: -1 });
-
-        if (matchingVideos.length === 0) {
-            await ctx.reply(
-                `❌ <b>Sorry, ${username}!</b>\n` +
-                `🎥 No videos found matching your search for "<i>${movieName}</i>".`,
-                { parse_mode: "HTML", reply_to_message_id: ctx.message.message_id }
-            );
-            return;
-        }
-
-        const totalPages = Math.ceil(matchingVideos.length / 8);
-        let currentPage = 1;
-        const buttons = generateButtons(matchingVideos, currentPage, totalPages);
-
-        const sentMessage = await ctx.reply(
-            `🎬 <b>Hello, ${username}!</b>\n` +
-            `🔍 I found <b>${matchingVideos.length}</b> videos matching your search for "<i>${movieName}</i>".\n\n` +
-            `📖 <b>Choose a video to watch:</b>`,
-            {
-                parse_mode: "HTML",
-                reply_to_message_id: ctx.message.message_id,
-                reply_markup: { inline_keyboard: buttons },
-            }
-        );
-
-        // Automatically delete the message after 2 minutes
-        deleteMessageAfter(ctx, sentMessage.message_id, 120);
-
-    } catch (error) {
-        console.error("Error searching for videos:", error);
-        const sentMessage = await ctx.reply(
-            "⚠️ <b>Oops! Something went wrong.</b>\n" +
-            "❌ Failed to search for videos. Please try again later.",
-            { parse_mode: "HTML", reply_to_message_id: ctx.message.message_id }
-        );
-
-        // Automatically delete the error message after 2 minutes
-        deleteMessageAfter(ctx, sentMessage.message_id, 120);
-    }
-});
-
-// Handle next page action
-bot.action(/next_(\d+)/, async (ctx) => {
-    const currentPage = parseInt(ctx.match[1]);
-    const nextPage = currentPage + 1;
-
-    const movieName = ctx.callbackQuery.message.text.split("'")[1]; // Extract movieName from message text
-    const regex = new RegExp(movieName, "i");
-
-    // Check cache first
-    const cacheKey = `videos_${movieName}`;
-    let matchingVideos = cache.get(cacheKey);
-
-    if (!matchingVideos) {
-        matchingVideos = await Video.find({ caption: regex });
-        cache.set(cacheKey, matchingVideos);
-    }
-
-    const totalPages = Math.ceil(matchingVideos.length / 8);
-
-    if (nextPage <= totalPages) {
-        const buttons = generateButtons(matchingVideos, nextPage, totalPages);
-        await ctx.editMessageText(
-            `Page ${nextPage}/${totalPages}: Found ${matchingVideos.length} videos matching '${movieName}'. Select one to watch:`,
-            Markup.inlineKeyboard(buttons)
-        );
-    }
-    await ctx.answerCbQuery();
-});
-
-// Handle previous page action
-bot.action(/prev_(\d+)/, async (ctx) => {
-    const currentPage = parseInt(ctx.match[1]);
-    const prevPage = currentPage - 1;
-
-    const movieName = ctx.callbackQuery.message.text.split("'")[1]; // Extract movieName from message text
-    const regex = new RegExp(movieName, "i");
-
-    // Check cache first
-    const cacheKey = `videos_${movieName}`;
-    let matchingVideos = cache.get(cacheKey);
-
-    if (!matchingVideos) {
-        matchingVideos = await Video.find({ caption: regex });
-        cache.set(cacheKey, matchingVideos);
-    }
-
-    const totalPages = Math.ceil(matchingVideos.length / 8);
-
-    if (prevPage > 0) {
-        const buttons = generateButtons(matchingVideos, prevPage, totalPages);
-        await ctx.editMessageText(
-            `Page ${prevPage}/${totalPages}: Found ${matchingVideos.length} videos matching '${movieName}'. Select one to watch:`,
-            Markup.inlineKeyboard(buttons)
-        );
-    }
-    await ctx.answerCbQuery();
-});
 
 bot.on("video", async (ctx) => {
     const { message } = ctx.update;
@@ -367,7 +229,7 @@ bot.on("video", async (ctx) => {
         }
 
         // Introduce a delay of 1 second for each video processing
-        await delay(1000); // Delay of 1 second (1000ms)
+        await deleteMessageAfter(1); // Delay of 1 second (1000ms)
 
         // Store video data in MongoDB
         const videos = await storeVideoData(videoFileId, caption, videoSize);
@@ -393,17 +255,166 @@ bot.on("video", async (ctx) => {
     }
 });
 
-// Utility function to introduce a delay
-function delay(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// bot.command("scrap", async (ctx) => {
 
 
-// bot.launch().then(() => {
-//     console.log('Bot started');
-// });
+bot.on("text", async (ctx) => {
+    const movieName = ctx.message.text.trim();
+    const username = ctx.from.first_name || ctx.from.username || "user";
+
+    try {
+        if (!movieName || movieName.length < 3) {
+            await ctx.reply(
+                "❌ <b>Please enter a valid movie name!</b>\n\n" +
+                "💡 <i>Hint: Type the name of the movie you want to search for.</i>",
+                { parse_mode: "HTML", reply_to_message_id: ctx.message.message_id }
+            );
+            return;
+        }
+
+        // Clean and prepare movie name for regex search
+        const cleanMovieName = movieName.replace(/[^\w\s]/gi, "").replace(/\s\s+/g, " ").trim();
+        const searchPattern = cleanMovieName.split(/\s+/).map(word => `(?=.*${word})`).join("");
+        const regex = new RegExp(`${searchPattern}`, "i");
+
+        const cacheKey = `videos_${cleanMovieName.toLowerCase()}`;
+        let matchingVideos = cache.get(cacheKey);
+
+        // Fetch videos if not in cache
+        if (!matchingVideos) {
+            matchingVideos = await Video.find({ caption: { $regex: regex } }).sort({ caption: -1 });
+            cache.set(cacheKey, matchingVideos);
+        }
+
+        if (matchingVideos.length === 0) {
+            await ctx.reply(
+                `❌ <b>Sorry, ${username}!</b>\n` +
+                `🎥 No videos found matching your search for "<i>${movieName}</i>".`,
+                { parse_mode: "HTML", reply_to_message_id: ctx.message.message_id }
+            );
+            return;
+        }
+
+        const totalPages = Math.ceil(matchingVideos.length / 8);
+        const currentPage = 1;
+        const buttons = generateButtons(matchingVideos, currentPage, totalPages, cleanMovieName);
+
+        const sentMessage = await ctx.reply(
+            `🎬 <b>Hello, ${username}!</b>\n` +
+            `🔍 I found <b>${matchingVideos.length}</b> videos matching your search for "<i>${movieName}</i>".\n\n` +
+            `📖 <b>Choose a video to watch:</b>`,
+            {
+                parse_mode: "HTML",
+                reply_to_message_id: ctx.message.message_id,
+                reply_markup: { inline_keyboard: buttons },
+            }
+        );
+
+        // Automatically delete the message after 2 minutes
+        deleteMessageAfter(ctx, sentMessage.message_id, 60);
+    } catch (error) {
+        console.error("Error searching for videos:", error);
+        const sentMessage = await ctx.reply(
+            "⚠️ <b>Oops! Something went wrong.</b>\n" +
+            "❌ Failed to search for videos. Please try again later.",
+            { parse_mode: "HTML", reply_to_message_id: ctx.message.message_id }
+        );
+
+        deleteMessageAfter(ctx, sentMessage.message_id, 20);
+    }
+});
+
+// Handle "Next Page" action
+bot.action(/next_(\d+)_(.+)/, async (ctx) => {
+    const currentPage = parseInt(ctx.match[1]);
+    const nextPage = currentPage + 1;
+    const cleanMovieName = ctx.match[2];
+
+    const cacheKey = `videos_${cleanMovieName.toLowerCase()}`;
+    const matchingVideos = cache.get(cacheKey);
+
+    if (matchingVideos) {
+        const totalPages = Math.ceil(matchingVideos.length / 8);
+        if (nextPage <= totalPages) {
+            const buttons = generateButtons(matchingVideos, nextPage, totalPages, cleanMovieName);
+            await ctx.editMessageText(
+                `🎬 <b>Page ${nextPage}/${totalPages}</b>\n` +
+                `🎥 Found <b>${matchingVideos.length}</b> videos for "<i>${cleanMovieName}</i>". Select one to watch:`,
+                {
+                    parse_mode: "HTML",
+                    reply_markup: { inline_keyboard: buttons },
+                }
+            );
+        }
+    }
+    await ctx.answerCbQuery();
+});
+
+// Handle "Previous Page" action
+bot.action(/prev_(\d+)_(.+)/, async (ctx) => {
+    const currentPage = parseInt(ctx.match[1]);
+    const prevPage = currentPage - 1;
+    const cleanMovieName = ctx.match[2];
+
+    const cacheKey = `videos_${cleanMovieName.toLowerCase()}`;
+    const matchingVideos = cache.get(cacheKey);
+
+    if (matchingVideos) {
+        const totalPages = Math.ceil(matchingVideos.length / 8);
+        if (prevPage > 0) {
+            const buttons = generateButtons(matchingVideos, prevPage, totalPages, cleanMovieName);
+            await ctx.editMessageText(
+                `🎬 <b>Page ${prevPage}/${totalPages}</b>\n` +
+                `🎥 Found <b>${matchingVideos.length}</b> videos for "<i>${cleanMovieName}</i>". Select one to watch:`,
+                {
+                    parse_mode: "HTML",
+                    reply_markup: { inline_keyboard: buttons },
+                }
+            );
+        }
+    }
+    await ctx.answerCbQuery();
+});
+
+// Generate Pagination Buttons
+const generateButtons = (videos, page, totalPages, cleanMovieName) => {
+    const maxButtonsPerPage = 8;
+    const startIndex = (page - 1) * maxButtonsPerPage;
+    const endIndex = Math.min(startIndex + maxButtonsPerPage, videos.length);
+
+    const buttons = videos.slice(startIndex, endIndex).map(video => {
+        const sizeMB = bytesToMB(video.size);
+        const truncatedCaption = truncateText(video.caption, 30); // Truncate the caption to 30 characters
+        const videoLink = `https://t.me/${process.env.BOT_USERNAME}?start=watch_${video._id}`;
+
+        return [
+            Markup.button.url(`${truncatedCaption} ${sizeMB ? `📦 [${sizeMB}]` : ''}`, videoLink),
+        ];
+    });
+
+    // Add navigation buttons
+    const navigationButtons = [];
+    if (page > 1) {
+        navigationButtons.push(Markup.button.callback("⬅️ Prev", `prev_${page}_${cleanMovieName}`));
+    }
+    if (page < totalPages) {
+        navigationButtons.push(Markup.button.callback("Next ➡️", `next_${page}_${cleanMovieName}`));
+    }
+
+    if (navigationButtons.length > 0) {
+        buttons.push(navigationButtons);
+    }
+
+    return buttons;
+};
+
+
+
+
+
+
+bot.launch().then(() => {
+    console.log('Bot started');
+});
 
 // Catch Telegraf errors
 bot.catch((err, ctx) => {
