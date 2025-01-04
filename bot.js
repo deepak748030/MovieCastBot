@@ -310,7 +310,7 @@ bot.on("video", async (ctx) => {
 
 
 
-bot.on("text", async (ctx) => {
+bot.hears(/.*/, async (ctx) => {
     const movieName = ctx.message.text.trim();
     const username = ctx.from.first_name || ctx.from.username || "user";
 
@@ -465,9 +465,9 @@ const generateButtons = (videos, page, totalPages, cleanMovieName) => {
 
 
 
-bot.launch().then(() => {
-    console.log('Bot started');
-});
+// bot.launch().then(() => {
+//     console.log('Bot started');
+// });
 
 // Catch Telegraf errors
 bot.catch((err, ctx) => {
