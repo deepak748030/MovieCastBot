@@ -8,7 +8,7 @@ const userCache = new NodeCache({ stdTTL: 86400 });
 const { bytesToMB, truncateText } = require('./utils/videoUtils');
 const { deleteMessageAfter } = require('./utils/telegramUtils');
 const { storeVideoData, cleanCaption } = require('./utils/textUtils');
-const scrap = require('./scraper/scrap');
+// const scrap = require('./scraper/scrap');
 
 const allowedUsers = ["knox7489", "vixcasm", "Knoxbros"];
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
@@ -205,25 +205,25 @@ bot.command("totalmovies", async (ctx) => {
     }
 });
 
-bot.command("scrap", async (ctx) => {
-    try {
-        const args = ctx.message.text.split(" ");
-        const [_, scrapFromChannel, sendToChannel, startFrom, noOfvideos] = args;
+// bot.command("scrap", async (ctx) => {
+//     try {
+//         const args = ctx.message.text.split(" ");
+//         const [_, scrapFromChannel, sendToChannel, startFrom, noOfvideos] = args;
 
-        if (!scrapFromChannel || !sendToChannel) {
-            await ctx.reply("⚠️ Please provide both source and destination channels. Example: /scrap <source_channel> <destination_channel>");
-            return;
-        }
-        console.log(scrapFromChannel, sendToChannel, startFrom, noOfvideos)
-        console.log(`Scraping from: ${scrapFromChannel}, Sending to: ${sendToChannel}`);
-        await scrap(ctx, scrapFromChannel, sendToChannel, noOfvideos, startFrom);
+//         if (!scrapFromChannel || !sendToChannel) {
+//             await ctx.reply("⚠️ Please provide both source and destination channels. Example: /scrap <source_channel> <destination_channel>");
+//             return;
+//         }
+//         console.log(scrapFromChannel, sendToChannel, startFrom, noOfvideos)
+//         console.log(`Scraping from: ${scrapFromChannel}, Sending to: ${sendToChannel}`);
+//         await scrap(ctx, scrapFromChannel, sendToChannel, noOfvideos, startFrom);
 
-        await ctx.reply("✅ Scraping started. Check logs for progress.");
-    } catch (error) {
-        console.error("Error executing scrap command:", error);
-        await ctx.reply("⚠️ Failed to execute scrap command. Please try again later.");
-    }
-});
+//         await ctx.reply("✅ Scraping started. Check logs for progress.");
+//     } catch (error) {
+//         console.error("Error executing scrap command:", error);
+//         await ctx.reply("⚠️ Failed to execute scrap command. Please try again later.");
+//     }
+// });
 
 
 
