@@ -10,9 +10,10 @@ const offsetSchema = new mongoose.Schema({
 
 const Offset = mongoose.model("Offset", offsetSchema);
 
-const scrap = async (ctx, scrapFromChannel, sendToChannel) => {
+const scrap = async (ctx, scrapFromChannel, sendToChannel, startFrom, noOfvideos) => {
     scrapFromChannel = scrapFromChannel.replace(/_/g, ' ');
     sendToChannel = sendToChannel.replace(/_/g, ' ');
+    console.log('data --------------', scrapFromChannel, sendToChannel, noOfvideos, startFrom)
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     console.log(scrapFromChannel, sendToChannel)
     const accounts = [
@@ -30,14 +31,20 @@ const scrap = async (ctx, scrapFromChannel, sendToChannel) => {
 
     let currentAccountIndex = 0;
     let offsetId = 0; // Start offset
-    const batchSize = 100; // Messages per batch
+    const batchSize = noOfvideos || 100; // Messages per batch
     let processing = true;
 
     // Load the last saved offsetId from MongoDB
     const loadOffset = async (channelId) => {
         try {
-            const offset = await Offset.findOne({ channelId });
-            return offset ? offset.offsetId : 0;
+            if (!startFrom) {
+                console.log('run this')
+                const offset = await Offset.findOne({ channelId });
+                return offset ? offset.offsetId : 0;
+            } else {
+                console.log('run this 2')
+                return startFrom;
+            }
         } catch (error) {
             console.error("Error loading offsetId from MongoDB:", error);
             return 0; // Default to 0 in case of an error
@@ -119,6 +126,7 @@ const scrap = async (ctx, scrapFromChannel, sendToChannel) => {
                         if (message.id % 10 === 0) {
                             await ctx.reply(`Video forwarded: ${message.id}`);
                         }
+                        await sleep(2000); // Wait for 1 second before processing the next message
                     } catch (error) {
                         if (error.errorMessage && error.errorMessage.includes("FLOOD_WAIT")) {
                             const waitTime = parseInt(error.errorMessage.split(" ")[1], 10) * 1000;

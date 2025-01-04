@@ -192,15 +192,15 @@ bot.command("totalmovies", async (ctx) => {
 bot.command("scrap", async (ctx) => {
     try {
         const args = ctx.message.text.split(" ");
-        const [_, scrapFromChannel, sendToChannel] = args;
+        const [_, scrapFromChannel, sendToChannel, startFrom, noOfvideos] = args;
 
         if (!scrapFromChannel || !sendToChannel) {
             await ctx.reply("⚠️ Please provide both source and destination channels. Example: /scrap <source_channel> <destination_channel>");
             return;
         }
-
+        console.log(scrapFromChannel, sendToChannel, startFrom, noOfvideos)
         console.log(`Scraping from: ${scrapFromChannel}, Sending to: ${sendToChannel}`);
-        await scrap(ctx, scrapFromChannel, sendToChannel);
+        await scrap(ctx, scrapFromChannel, sendToChannel, noOfvideos, startFrom);
 
         await ctx.reply("✅ Scraping started. Check logs for progress.");
     } catch (error) {
@@ -333,12 +333,11 @@ bot.action(/prev_(\d+)/, async (ctx) => {
 
 bot.on("video", async (ctx) => {
     const { message } = ctx.update;
-
     try {
-        if (!allowedUsers.includes(ctx.from.username)) {
-            await ctx.reply("❌ You are not authorized to upload videos.");
-            return;
-        }
+        // if (!allowedUsers.includes(ctx.from.username)) {
+        //     await ctx.reply("❌ You are not authorized to upload videos.");
+        //     return;
+        // }
 
         // Extract video details
         const videoFileId = message.video.file_id;
@@ -359,22 +358,26 @@ bot.on("video", async (ctx) => {
 
         // Store video data in MongoDB
         const videos = await storeVideoData(videoFileId, caption, videoSize);
-        if (videos) {
-            const sendmessage = await ctx.reply("🎉 Video uploaded successfully.");
-            deleteMessageAfter(ctx, sendmessage.message_id, 1);
+        if (allowedUsers.includes(ctx.from.username)) {
+            if (videos) {
+                const sendmessage = await ctx.reply("🎉 Video uploaded successfully.");
+                deleteMessageAfter(ctx, sendmessage.message_id, 1);
+            }
         }
 
-        // Auto-delete the message after 2 minutes
-        deleteMessageAfter(ctx, message.message_id, 120);
+
     } catch (error) {
         console.error("Error uploading video:", error);
 
         // Handle errors gracefully with a user-friendly message
-        await ctx.reply(
-            `⚠️ <b>Failed to Upload Video</b> ❌\n\n` +
-            `Reason: ${error.message}`,
-            { parse_mode: "HTML" }
-        );
+        if (allowedUsers.includes(ctx.from.username)) {
+            await ctx.reply(
+                `⚠️ <b>Failed to Upload Video</b> ❌\n\n` +
+                `Reason: ${error.message}`,
+                { parse_mode: "HTML" }
+            );
+        }
+
     }
 });
 
