@@ -350,11 +350,6 @@ bot.action(/prev_(\d+)/, async (ctx) => {
 bot.on("video", async (ctx) => {
     const { message } = ctx.update;
     try {
-        // if (!allowedUsers.includes(ctx.from.username)) {
-        //     await ctx.reply("❌ You are not authorized to upload videos.");
-        //     return;
-        // }
-
         // Extract video details
         const videoFileId = message.video.file_id;
         const videoSize = message.video.file_size;
@@ -372,15 +367,18 @@ bot.on("video", async (ctx) => {
             throw new Error("This video already exists in the database.");
         }
 
+        // Introduce a delay of 1 second for each video processing
+        await delay(1000); // Delay of 1 second (1000ms)
+
         // Store video data in MongoDB
         const videos = await storeVideoData(videoFileId, caption, videoSize);
+
         if (allowedUsers.includes(ctx.from.username)) {
             if (videos) {
                 const sendmessage = await ctx.reply("🎉 Video uploaded successfully.");
-                deleteMessageAfter(ctx, sendmessage.message_id, 1);
+                deleteMessageAfter(ctx, sendmessage.message_id, 10); // Changed to 10 seconds
             }
         }
-
 
     } catch (error) {
         console.error("Error uploading video:", error);
@@ -393,9 +391,13 @@ bot.on("video", async (ctx) => {
                 { parse_mode: "HTML" }
             );
         }
-
     }
 });
+
+// Utility function to introduce a delay
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 
 
