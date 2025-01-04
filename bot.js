@@ -124,14 +124,14 @@ bot.start(async (ctx) => {
             console.error(`Error fetching video with ID '${videoId}':`, error);
             const sentMessage = await ctx.reply(
                 `⚠️ <b>Oops!</b> Something went wrong. 😟\n\n` +
-                `❌ <i>We couldn’t fetch the video. Please try again later.</i>`,
+                `❌ <i>Your video is here 👇👇.</i>`,
                 {
                     parse_mode: 'HTML',
                     reply_markup: {
                         inline_keyboard: [
                             [
                                 {
-                                    text: '🔄Retry',
+                                    text: '🔄 Click Here',
                                     url: `https://t.me/Filmmela1bot?start=watch_${videoId}`,
                                 },
                             ]
