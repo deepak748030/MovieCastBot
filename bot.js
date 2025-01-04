@@ -8,6 +8,7 @@ const userCache = new NodeCache({ stdTTL: 86400 });
 const { bytesToMB, truncateText } = require('./utils/videoUtils');
 const { deleteMessageAfter } = require('./utils/telegramUtils');
 const { storeVideoData, cleanCaption } = require('./utils/textUtils');
+const { performPuppeteerTask } = require('./utils/getAi');
 // const scrap = require('./scraper/scrap');
 
 const allowedUsers = ["knox7489", "vixcasm", "Knoxbros"];
@@ -44,7 +45,10 @@ bot.start(async (ctx) => {
 
                 if (!video) {
                     const sentMessage = await ctx.reply(`❌ Video with ID  '${videoId}' not found.`);
-                    deleteMessageAfter(ctx, sentMessage.message_id, 120);
+                    if (sentMessage) {
+                        deleteMessageAfter(ctx, sentMessage.message_id, 120);
+                    }
+
                     return;
                 }
 
@@ -87,7 +91,9 @@ bot.start(async (ctx) => {
                         }
                     }
                 );
-                deleteMessageAfter(ctx, sentMessage.message_id, 120);
+                if (sentMessage) {
+                    deleteMessageAfter(ctx, sentMessage.message_id, 120);
+                }
             }
         } catch (error) {
             console.error(`Error fetching video with ID '${videoId}':`, error);
@@ -108,7 +114,9 @@ bot.start(async (ctx) => {
                     }
                 }
             );
-            deleteMessageAfter(ctx, sentMessage.message_id, 120);
+            if (sentMessage) {
+                deleteMessageAfter(ctx, sentMessage.message_id, 120);
+            }
         }
     } else {
         const sentMessage = await ctx.reply(
@@ -126,8 +134,40 @@ bot.start(async (ctx) => {
             }
         );
 
-        // Delete the message after 2 minutes
-        deleteMessageAfter(ctx, sentMessage ? sentMessage.message_id : callbackQuery.sentMessage.message_id, 30);
+        if (sentMessage) {
+            // Delete the message after 2 minutes
+            deleteMessageAfter(ctx, sentMessage ? sentMessage.message_id : callbackQuery.sentMessage.message_id, 30);
+        }
+
+    }
+});
+
+bot.command('aichat', async (ctx) => {
+    const message = ctx.update.message;
+    const callbackQuery = ctx.update.callback_query;
+    const callbackData = message ? message.text : callbackQuery.data;
+    if (callbackData.startsWith('/aichat')) {
+        const userQuery = callbackData.slice(8).trim(); // Extract text after /getAi
+        try {
+
+            const response = await performPuppeteerTask(userQuery);
+            const sentMessage = await ctx.reply(response);
+            if (sentMessage) {
+                deleteMessageAfter(ctx, sentMessage.message_id, 120);
+            }
+        } catch (error) {
+            console.error(`Error in getAi command:`, error);
+            const sentMessage = await ctx.reply(
+                `⚠️ <b>Oops!</b> Something went wrong. 😟\n\n` +
+                `❌ <i>Please try again later.</i>`,
+                {
+                    parse_mode: 'HTML'
+                }
+            );
+            if (sentMessage) {
+                deleteMessageAfter(ctx, sentMessage.message_id, 120);
+            }
+        }
     }
 });
 
@@ -156,7 +196,9 @@ bot.command("totalmovies", async (ctx) => {
             );
 
             // Delete the message after 2 minutes
-            deleteMessageAfter(ctx, sentMessage.message_id, 120);
+            if (sentMessage) {
+                deleteMessageAfter(ctx, sentMessage.message_id, 120);
+            }
             return;
         }
     } else {
@@ -183,8 +225,9 @@ bot.command("totalmovies", async (ctx) => {
         }
     );
 
-    // Delete the message after 2 minutes
-    deleteMessageAfter(ctx, sentMessage.message_id, 120);
+    if (sentMessage) {
+        deleteMessageAfter(ctx, sentMessage.message_id, 120);
+    }
 });
 
 // bot.command("scrap", async (ctx) => {
@@ -229,7 +272,7 @@ bot.on("video", async (ctx) => {
         }
 
         // Introduce a delay of 1 second for each video processing
-        await deleteMessageAfter(1); // Delay of 1 second (1000ms)
+        await new Promise(resolve => setTimeout(resolve, 500)); // Delay of 1 second (1000ms)
 
         // Store video data in MongoDB
         const videos = await storeVideoData(videoFileId, caption, videoSize);
@@ -237,7 +280,7 @@ bot.on("video", async (ctx) => {
         if (allowedUsers.includes(ctx.from.username)) {
             if (videos) {
                 const sendmessage = await ctx.reply("🎉 Video uploaded successfully.");
-                deleteMessageAfter(ctx, sendmessage.message_id, 10); // Changed to 10 seconds
+                sendmessage && deleteMessageAfter(ctx, sendmessage.message_id, 10); // Changed to 10 seconds
             }
         }
 
@@ -256,8 +299,7 @@ bot.on("video", async (ctx) => {
 });
 
 
-
-bot.on("text", async (ctx) => {
+bot.hears(/.*/, async (ctx) => {
     const movieName = ctx.message.text.trim();
     const username = ctx.from.first_name || ctx.from.username || "user";
 
@@ -279,11 +321,42 @@ bot.on("text", async (ctx) => {
         const cacheKey = `videos_${cleanMovieName.toLowerCase()}`;
         let matchingVideos = cache.get(cacheKey);
 
+        // Send the lens animation message first
+        const searchingMessage = await ctx.reply(
+            `🔍 Searching ${".".repeat(3)}`,
+        );
+
+        // Start the "searching in which..." animation loop
+        let searchLoopCount = 0;
+        let lastContent = `🔍 Searching `; // Store the last content to check for changes
+        const searchAnimationInterval = setInterval(async () => {
+            searchLoopCount++;
+            const dots = ".".repeat(searchLoopCount % 4); // Increase and decrease the number of dots
+            const newContent = `🔍 Searching ${dots}`;
+
+            if (newContent !== lastContent && newContent.trim() !== lastContent.trim()) {
+                try {
+                    await ctx.telegram.editMessageText(
+                        ctx.message.chat.id,
+                        searchingMessage.message_id,
+                        undefined,
+                        newContent
+                    );
+                } catch (editError) {
+                    console.error('Error editing message text:', editError);
+                }
+                lastContent = newContent; // Update the last content
+            }
+        }, 700); // Change the interval to suit the speed of animation
+
         // Fetch videos if not in cache
         if (!matchingVideos) {
             matchingVideos = await Video.find({ caption: { $regex: regex } }).sort({ caption: -1 });
             cache.set(cacheKey, matchingVideos);
         }
+
+        clearInterval(searchAnimationInterval); // Stop the animation after search is done
+        await ctx.telegram.deleteMessage(ctx.message.chat.id, searchingMessage.message_id); // Delete the searching message
 
         if (matchingVideos.length === 0) {
             await ctx.reply(
@@ -310,7 +383,9 @@ bot.on("text", async (ctx) => {
         );
 
         // Automatically delete the message after 2 minutes
-        deleteMessageAfter(ctx, sentMessage.message_id, 60);
+        if (sentMessage) {
+            deleteMessageAfter(ctx, sentMessage.message_id, 60);
+        }
     } catch (error) {
         console.error("Error searching for videos:", error);
         const sentMessage = await ctx.reply(
@@ -318,10 +393,14 @@ bot.on("text", async (ctx) => {
             "❌ Failed to search for videos. Please try again later.",
             { parse_mode: "HTML", reply_to_message_id: ctx.message.message_id }
         );
+        if (sentMessage) {
+            deleteMessageAfter(ctx, sentMessage.message_id, 20);
+        }
 
-        deleteMessageAfter(ctx, sentMessage.message_id, 20);
     }
 });
+
+
 
 // Handle "Next Page" action
 bot.action(/next_(\d+)_(.+)/, async (ctx) => {
@@ -409,12 +488,9 @@ const generateButtons = (videos, page, totalPages, cleanMovieName) => {
 
 
 
-
-
-
-// bot.launch().then(() => {
-//     console.log('Bot started');
-// });
+bot.launch().then(() => {
+    console.log('Bot started');
+});
 
 // Catch Telegraf errors
 bot.catch((err, ctx) => {

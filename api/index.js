@@ -15,7 +15,7 @@ connectToMongoDB();
 app.use(express.json());
 
 // Define routes
-app.get('/api', (req, res) => {
+app.get('/', (req, res) => {
     res.send('Server started');
 });
 
@@ -24,6 +24,7 @@ const path = `/api/telegram-bot`;
 app.post(path, (req, res) => {
     bot.handleUpdate(req.body, res);
 });
+
 
 // Middleware to handle errors
 app.use((err, req, res, next) => {
