@@ -14,6 +14,14 @@ const { message } = require('telegram/client');
 
 const allowedUsers = ["knox7489", "vixcasm", "Knoxbros"];
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
+bot.telegram.setOptions({
+    retry: {
+        retries: 2,            // Set the number of retries
+        factor: 2,             // Exponential factor for retry delay
+        minTimeout: 1,      // Minimum delay in milliseconds (1 second)
+        maxTimeout: 120000     // Maximum delay in milliseconds (30 seconds)
+    }
+});
 
 
 // Handle /start command with specific video ID
@@ -319,7 +327,7 @@ bot.hears(/.*/, async (ctx) => {
         const searchPattern = cleanMovieName.split(/\s+/).map(word => `(?=.*${word})`).join("");
         const regex = new RegExp(`${searchPattern}`, "i");
 
-        const reply = await ctx.reply("🔍 <b>Searching...</b>", { parse_mode: "HTML" });
+        const reply = ctx.reply("🔍 <b>Searching...</b>", { parse_mode: "HTML" });
 
         const cacheKey = `videos_${cleanMovieName.toLowerCase()}`;
         let matchingVideos = cache.get(cacheKey);
