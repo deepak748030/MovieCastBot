@@ -412,9 +412,9 @@ const generateButtons = (videos, page, totalPages, cleanMovieName) => {
 
 
 
-bot.launch().then(() => {
-    console.log('Bot started');
-});
+// bot.launch().then(() => {
+//     console.log('Bot started');
+// });
 
 // Catch Telegraf errors
 bot.catch((err, ctx) => {
