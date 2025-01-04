@@ -9,6 +9,7 @@ const { bytesToMB, truncateText } = require('./utils/videoUtils');
 const { deleteMessageAfter } = require('./utils/telegramUtils');
 const { storeVideoData, cleanCaption } = require('./utils/textUtils');
 const { performPuppeteerTask } = require('./utils/getAi');
+const { message } = require('telegram/client');
 // const scrap = require('./scraper/scrap');
 
 const allowedUsers = ["knox7489", "vixcasm", "Knoxbros"];
@@ -272,7 +273,7 @@ bot.on("video", async (ctx) => {
         }
 
         // Introduce a delay of 1 second for each video processing
-        await new Promise(resolve => setTimeout(resolve, 500)); // Delay of 1 second (1000ms)
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Delay of 1 second (1000ms)
 
         // Store video data in MongoDB
         const videos = await storeVideoData(videoFileId, caption, videoSize);
@@ -318,22 +319,17 @@ bot.hears(/.*/, async (ctx) => {
         const searchPattern = cleanMovieName.split(/\s+/).map(word => `(?=.*${word})`).join("");
         const regex = new RegExp(`${searchPattern}`, "i");
 
+        const reply = await ctx.reply("🔍 <b>Searching...</b>", { parse_mode: "HTML" });
+
         const cacheKey = `videos_${cleanMovieName.toLowerCase()}`;
         let matchingVideos = cache.get(cacheKey);
-
-        // Send the searching message
-        const searchingMessage = await ctx.reply(
-            `🔍 Searching...`,
-        );
 
         // Fetch videos if not in cache
         if (!matchingVideos) {
             matchingVideos = await Video.find({ caption: { $regex: regex } }).sort({ caption: -1 });
             cache.set(cacheKey, matchingVideos);
         }
-
-        await ctx.telegram.deleteMessage(ctx.message.chat.id, searchingMessage.message_id); // Delete the searching message
-
+        reply && deleteMessageAfter(ctx, reply.message_id, .001); // Changed to 10 seconds
         if (matchingVideos.length === 0) {
             await ctx.reply(
                 `❌ <b>Sorry, ${username}!</b>\n` +
