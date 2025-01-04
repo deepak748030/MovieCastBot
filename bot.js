@@ -12,7 +12,7 @@ const { storeVideoData, cleanCaption } = require('./utils/textUtils');
 
 const allowedUsers = ["knox7489", "vixcasm", "Knoxbros"];
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
-
+// this 
 // Function to generate inline keyboard buttons for a specific page
 const generateButtons = (videos, page, totalPages) => {
     const maxButtonsPerPage = 8;
@@ -80,7 +80,7 @@ bot.start(async (ctx) => {
                 }
 
                 // Add "Join ➥ @MovieCastAgainBot" to the end of the caption
-                const captionWithLink = `🎥 <b>${video.caption || "NOT AVAILABLE"}    📦 <b>SIZE:</b> ${bytesToMB(video.size)} </b>\n\n⚠️ <b>NOTE:</b> This video will be deleted after 10 minutes.\n\n✨ <i>Join ➥</i> @MovieCastAgainBot`;
+                const captionWithLink = `🎥 <b>${video.caption || "NOT AVAILABLE"}    📦 <b>SIZE:</b> ${bytesToMB(video.size)} </b>\n\n⚠️ <b>NOTE:</b> This video was not deleted.\n\n✨ <i>Join ➥</i> @moviecastmovie`;
                 // Send the video file to the user
                 const sentMessage = await ctx.replyWithVideo(video.fileId, {
                     caption: `${captionWithLink}`,
