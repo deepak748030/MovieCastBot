@@ -92,11 +92,10 @@ bot.start(async (ctx) => {
                             ]
                         ]
                     },
-                    disable_notification: true
+                    disable_notification: true,
+                    protect_content: true
                 });
 
-                // Delete the message after 2 minutes
-                deleteMessageAfter(ctx, sentMessage.message_id, 1000);
             } else {
                 const sentMessage = await ctx.reply(
                     `🚀 <b>JOIN</b> @MovieCastAgainBot <b>TO WATCH THIS VIDEO</b> 🎥\n\n📢 <i>Unlock premium movies and exclusive content!</i>`,
