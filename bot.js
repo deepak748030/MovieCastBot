@@ -10,9 +10,15 @@ const { deleteMessageAfter } = require('./utils/telegramUtils');
 const { storeVideoData, cleanCaption } = require('./utils/textUtils');
 const { performPuppeteerTask } = require('./utils/getAi');
 const { message } = require('telegram/client');
+const User = require('./models/user');
 // const scrap = require('./scraper/scrap');
+const saveUser = require('./utils/saveusers');
+const createMovieRequest = require('./utils/movierequest');
+const { isAdmin } = require('./helper/admincheck');
+const MovieRequest = require('./models/movierequest');
 
-const allowedUsers = ["knox7489", "vixcasm", "Knoxbros"];
+
+
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN, {
     telegram: {
         retry: {
@@ -27,16 +33,10 @@ const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN, {
 
 // Handle /start command with specific video ID
 bot.start(async (ctx) => {
-    const userId = ctx.from.id;
-    const username = ctx.from.username || "NoUsername";
-    const name = ctx.from.first_name || ctx.from.last_name || "Anonymous";
-
-    userCache.set(userId, { username, name });
-
     const message = ctx.update.message;
     const callbackQuery = ctx.update.callback_query;
     const callbackData = message ? message.text : callbackQuery.data;
-
+    saveUser(ctx);
     if (callbackData.startsWith('/start watch_')) {
         // const chatMember = await ctx.telegram.getChatMember('@moviecastmovie', ctx.from.id);
         const videoId = callbackData.split('_')[1]; // Extract video ID from the callback data
@@ -63,7 +63,7 @@ bot.start(async (ctx) => {
                 }
 
                 // Add "Join ➥ @MovieCastAgainBot" to the end of the caption
-                const captionWithLink = `🎥 <b>${video.caption || "NOT AVAILABLE"}    📦 <b>SIZE:</b> ${bytesToMB(video.size)} </b>\n\n⚠️ <b>NOTE:</b> This video was not deleted.\n\n✨ <i>Join ➥</i> @moviecastmovie`;
+                const captionWithLink = `🎥 <b>${video.caption || "NOT AVAILABLE"}    📦 <b>SIZE:</b> ${bytesToMB(video.size)} </b>\n\n⚠️ <b>NOTE:</b> This video will be deleted in 5 minutes, so save or forward it.\n\n✨ <i>Join ➥</i> @moviecastmovie`;
                 // Send the video file to the user
                 const sentMessage = await ctx.replyWithVideo(video.fileId, {
                     caption: `${captionWithLink}`,
@@ -75,10 +75,9 @@ bot.start(async (ctx) => {
                             ]
                         ]
                     },
-                    disable_notification: true,
-                    protect_content: true
+                    disable_notification: false
                 });
-
+                sentMessage && deleteMessageAfter(ctx, sentMessage.message_id, 300); // Changed to 5 minutes
             } else {
                 const sentMessage = await ctx.reply(
                     `🚀 <b>JOIN</b> @MovieCastAgainBot <b>TO WATCH THIS VIDEO</b> 🎥\n\n📢 <i>Unlock premium movies and exclusive content!</i>`,
@@ -109,7 +108,7 @@ bot.start(async (ctx) => {
             console.error(`Error fetching video with ID '${videoId}':`, error);
             const sentMessage = await ctx.reply(
                 `⚠️ <b>Oops!</b> Something went wrong. 😟\n\n` +
-                `❌ <i>Your video is here 👇👇.</i>`,
+                `👇 <i>Your video is here 👇👇.</i>`,
                 {
                     parse_mode: 'HTML',
                     reply_markup: {
@@ -152,7 +151,108 @@ bot.start(async (ctx) => {
     }
 });
 
+// Command to get all movie requests (Admins only)
+bot.command('getrequests', async (ctx) => {
+    if (!isAdmin(ctx)) {
+        const sentMessage = await ctx.reply(
+            `🚫 <b>Access Denied!</b>\n\n` +
+            `❌ <i>Sorry, you are not authorized to use this command.</i>`,
+            { parse_mode: 'HTML' }
+        );
+        sentMessage && deleteMessageAfter(ctx, sentMessage.message_id, 3);
+        return;
+    }
+
+    try {
+        const movieRequests = await MovieRequest.find({}).sort({ createdAt: -1 });
+        const requestList = movieRequests.map(request => {
+            const date = new Date(request.createdAt).toLocaleString();
+            return `🆔 <b>Username:</b> <code>${request.username}</code>\n` +
+                `🎬 <b>Movie Name:</b> <code>${request.movieName}</code>\n` +
+                `🕒 <b>Requested At:</b> <code>${date}</code>\n\n`;
+        }).join('');
+        await ctx.reply(`📋 <b>All Movie Requests:</b>\n\n${requestList}`, { parse_mode: 'HTML' });
+    } catch (error) {
+        console.error('Error fetching movie requests:', error);
+        await ctx.reply('⚠️ Failed to fetch movie requests. Please try again later.');
+    }
+});
+
+// Command to get all users (Admins only)
+bot.command('getusers', async (ctx) => {
+    if (!isAdmin(ctx)) {
+        const sentMessage = await ctx.reply(
+            `🚫 <b>Access Denied!</b>\n\n` +
+            `❌ <i>Sorry, you are not authorized to use this command.</i>`,
+            { parse_mode: 'HTML' }
+        );
+        sentMessage && deleteMessageAfter(ctx, sentMessage.message_id, 3);
+        return;
+    }
+
+    try {
+        const users = await User.find({});
+        const userList = users.map(user => {
+            const date = new Date(user.updatedAt).toLocaleString();
+            return `🆔 <b>ID:</b> ${user.userId}\n👤 <b>Username:</b> ${user.username}\n📛 <b>Name:</b> ${user.name}\n🕒 <b>Last Updated:</b> ${date}\n\n`;
+        }).join('');
+        await ctx.reply(`📋 <b>All Users:</b>\n\n${userList}`, { parse_mode: 'HTML' });
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        await ctx.reply('⚠️ Failed to fetch users. Please try again later.');
+    }
+});
+
+// Broadcast message to all users (Admins only)
+bot.command('broadcast', async (ctx) => {
+
+    // Fancy response message
+    if (!isAdmin(ctx)) {
+        const sentMessage = await ctx.reply(
+            `🚫 <b>Access Denied!</b>\n\n` +
+            `❌ <i>Sorry, you are not authorized to use this command.</i>`,
+            { parse_mode: 'HTML' }
+        );
+        sentMessage && deleteMessageAfter(ctx, sentMessage.message_id, 3);
+        return;
+    }
+
+    const message = ctx.message.text.split(' ').slice(1).join(' ');
+    if (!message) {
+        await ctx.reply('Please provide a message to broadcast.');
+        return;
+    }
+
+    try {
+        const allUsers = await User.find({});
+        for (const user of allUsers) {
+            try {
+                await ctx.telegram.sendMessage(user.userId, message, { parse_mode: 'HTML' });
+            } catch (error) {
+                console.error(`Failed to send message to user ${user.userId}:`, error);
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        await ctx.reply('⚠️ Failed to fetch users. Please try again later.');
+    }
+
+    await ctx.reply('Broadcast message sent to all users.');
+});
+
 bot.command('aichat', async (ctx) => {
+
+    // Fancy response message
+    if (!isAdmin(ctx)) {
+        const sentMessage = await ctx.reply(
+            `🚫 <b>Access Denied!</b>\n\n` +
+            `❌ <i>Sorry, you are not authorized to use this command.</i>`,
+            { parse_mode: 'HTML' }
+        );
+        sentMessage && deleteMessageAfter(ctx, sentMessage.message_id, 3);
+        return;
+    }
+
     const message = ctx.update.message;
     const callbackQuery = ctx.update.callback_query;
     const callbackData = message ? message.text : callbackQuery.data;
@@ -181,46 +281,75 @@ bot.command('aichat', async (ctx) => {
     }
 });
 
-// Telegram bot handlers
-bot.command("totalmovies", async (ctx) => {
-    const cacheKey = 'total_movies_count';
-    let count = cache.get(cacheKey);
-    const startTime = Date.now();
-    if (!count) {
-        try {
+// Define the /rule command with retry and error handling
+bot.command('rule', async (ctx) => {
+    try {
+        const rules = `
+✗ *𝐌𝐎𝐕𝐈𝐄/𝐒𝐄𝐑𝐈𝐄𝐒 𝐒𝐄𝐀𝐑𝐂𝐇 𝐑𝐔𝐋𝐄𝐒*
 
-            count = await Video.countDocuments();
+◉ *Always search movies/series in English.* Don't use other languages.
 
+◉ *Always use correct spelling.* You can find the right spelling on Google.
 
-            cache.set(cacheKey, count, 86400); // Cache for 24 hours
-        } catch (error) {
-            console.error("Error fetching movie count:", error);
+◉ *Search movies like this:*
+   › \`salaar 2023\` ✔️  
+   › \`salaar hindi\` ✔️  
+   › \`salaar movie\` ❌  
+   › \`salaar south movie\` ❌  
+   › \`salaar hindi dubbed\` ❌  
 
-            // Error response message
-            const sentMessage = await ctx.reply(
-                `⚠️ <b>Oops!</b> Something went wrong. 😟\n\n` +
-                `❌ <i>We couldn’t fetch the movie count. Please try again later.</i>`,
-                {
-                    parse_mode: "HTML",
-                }
-            );
+◉ *Search series like this:*
+   › \`vikings\` ✔️  
+   › \`vikings s01\` ✔️  
+   › \`vikings s01e01\` ✔️  
+   › \`vikings s01 hindi\` ✔️  
+   › \`vikings season 1\` ❌  
+   › \`vikings web series\` ❌  
+   › \`vikings s01e01 hindi\` ❌  
+   › \`vikings s01 hindi dubbed\` ❌  
 
-            // Delete the message after 2 minutes
-            if (sentMessage) {
-                deleteMessageAfter(ctx, sentMessage.message_id, 120);
-            }
-            return;
-        }
-    } else {
-        console.log('Cache hit. Returning cached count.');
+◉ *Don't request anything other than movies, series, or anime.*
+
+_Maintained by -_ [@moviecastmovie]
+`;
+        // Attempt to send the message
+        await ctx.replyWithMarkdown(rules);
+    } catch (error) {
+        // Log and handle the error
+        console.error('Failed to send rules:', error.message);
+        ctx.reply('⚠️ Sorry, an error occurred while sending the rules. Please try again later.', error.message);
     }
-    const endTime = Date.now();
-    const cacheTime = endTime - startTime;
+});
 
-    console.log(`Cache miss. Time taken to fetch count: ${cacheTime}ms`);
-    // Fancy response message
+// Telegram bot handlers
+
+bot.command("totalmovies", async (ctx) => {
+    let count;
+    try {
+        count = await Video.countDocuments();
+    } catch (error) {
+        console.error("Error fetching movie count:", error);
+
+        // Error response message
+        const sentMessage = await ctx.reply(
+            `⚠️ <b>Oops!</b> Something went wrong. 😟\n\n` +
+            `❌ <i>We couldn’t fetch the movie count. Please try again later.</i>`,
+            {
+                parse_mode: "HTML",
+            }
+        );
+
+        // Delete the message after 2 minutes
+        if (sentMessage) {
+            deleteMessageAfter(ctx, sentMessage.message_id, 10);
+        }
+        return;
+    }
+
+
+
     const sentMessage = await ctx.reply(
-        `🎥 <b>Total Movies in Our Collection</b> 🎬\n\n` +
+        `🎬 <b>Total Movies in Our Collection</b> 🎬\n\n` +
         `📁 <i>Movies Count:</i> <b>${count}</b>\n\n` +
         `✨ <i>Discover amazing films and enjoy unlimited entertainment!</i>`,
         {
@@ -235,9 +364,9 @@ bot.command("totalmovies", async (ctx) => {
         }
     );
 
-    if (sentMessage) {
-        deleteMessageAfter(ctx, sentMessage.message_id, 120);
-    }
+
+    sentMessage && deleteMessageAfter(ctx, sentMessage.message_id, 120);
+
 });
 
 // bot.command("scrap", async (ctx) => {
@@ -286,8 +415,7 @@ bot.on("video", async (ctx) => {
 
         // Store video data in MongoDB
         const videos = await storeVideoData(videoFileId, caption, videoSize);
-
-        if (allowedUsers.includes(ctx.from.username)) {
+        if (isAdmin(ctx)) {
             if (videos) {
                 const sendmessage = await ctx.reply("🎉 Video uploaded successfully.");
                 sendmessage && deleteMessageAfter(ctx, sendmessage.message_id, 10); // Changed to 10 seconds
@@ -298,12 +426,13 @@ bot.on("video", async (ctx) => {
         console.error("Error uploading video:", error);
 
         // Handle errors gracefully with a user-friendly message
-        if (allowedUsers.includes(ctx.from.username)) {
-            await ctx.reply(
+        if (isAdmin(ctx)) {
+            const sentmessage = await ctx.reply(
                 `⚠️ <b>Failed to Upload Video</b> ❌\n\n` +
                 `Reason: ${error.message}`,
                 { parse_mode: "HTML" }
             );
+            sentmessage && deleteMessageAfter(ctx, sentmessage.message_id, 10); // Changed to 10 seconds
         }
     }
 });
@@ -315,10 +444,22 @@ bot.hears(/.*/, async (ctx) => {
     const username = ctx.from.first_name || ctx.from.username || "user";
 
     try {
+        saveUser(ctx);
         if (!movieName || movieName.length < 3) {
             await ctx.reply(
                 "❌ <b>Please enter a valid movie name!</b>\n\n" +
                 "💡 <i>Hint: Type the name of the movie you want to search for.</i>",
+                { parse_mode: "HTML", reply_to_message_id: ctx.message.message_id }
+            );
+            return;
+        }
+
+        const invalidKeywords = ["movie", "series", "film", "show", "hero", "actor"];
+        if (invalidKeywords.some(keyword => movieName.toLowerCase().includes(keyword))) {
+            await ctx.reply(
+                "❌ <b>Please enter only the movie or series name, and optionally the year.</b>\n\n" +
+                "💡 <i>Example: 'Inception 2010' or 'Breaking Bad'.</i>\n\n" +
+                "⚠️ <b>Do not include words like 'movie', 'series', 'film', 'show', 'hero', or 'actor'.</b>",
                 { parse_mode: "HTML", reply_to_message_id: ctx.message.message_id }
             );
             return;
@@ -334,7 +475,36 @@ bot.hears(/.*/, async (ctx) => {
 
         // Fetch videos if not in cache
         if (!matchingVideos) {
-            matchingVideos = await Video.find({ caption: { $regex: regex } }).sort({ caption: -1 });
+            matchingVideos = await Video.find({
+                caption: { $regex: regex },
+                size: { $gte: 50 * 1024 * 1024 } // Ensure size is at least 50MB
+            });
+
+            // Sort the videos using JavaScript
+            matchingVideos.sort((a, b) => {
+                const qualityOrder = [
+                    '4k', 'webdl', 'bluray', 'hdrip', 'webrip', 'hevc',
+                    '720p', 'hdtv', 'hdtc', 'dvdscr', 'dvdrip',
+                    'camrip', 'ts', 'hdts', 'hdcam',
+                    'screener', 'tvrip', 'vhsrip', 'workprint'
+                ];
+                const qualityA = qualityOrder.indexOf(a.quality);
+                const qualityB = qualityOrder.indexOf(b.quality);
+
+                if (qualityA !== qualityB) {
+                    return qualityA - qualityB;
+                }
+
+                return a.caption.localeCompare(b.caption);
+            });
+
+            // Format captions to replace season and episode numbers
+            matchingVideos = matchingVideos.map(video => {
+                video.caption = video.caption.replace(/season\s*(\d+)|seasons\s*(\d+)/gi, (match, p1) => `S${p1.padStart(2, '0')}`)
+                    .replace(/episode\s*(\d+)|episodes\s*(\d+)/gi, (match, p1) => `E${p1.padStart(2, '0')}`);
+                return video;
+            });
+
             cache.set(cacheKey, matchingVideos);
         }
 
@@ -344,7 +514,10 @@ bot.hears(/.*/, async (ctx) => {
                 `🎥 No videos found matching your search for "<i>${movieName}</i>".`,
                 { parse_mode: "HTML", reply_to_message_id: ctx.message.message_id }
             );
-            return;
+            // Save the movie request to MongoDB
+            createMovieRequest(ctx.from.username, movieName);
+
+
         }
 
         const totalPages = Math.ceil(matchingVideos.length / 8);

@@ -4,7 +4,7 @@ const videoSchema = new mongoose.Schema({
     fileId: { type: String, required: true, index: true },
     caption: { type: String, required: false, index: true },
     size: { type: Number }
-});
+}, { timestamps: true });
 
 const Video = mongoose.model('Video', videoSchema);
 

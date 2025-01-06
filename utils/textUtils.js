@@ -14,13 +14,13 @@ const storeVideoData = async (fileId, caption, size) => {
 
 // Function to clean the caption by removing unwanted elements
 const cleanCaption = (caption) => {
-    // Remove links, special characters, stickers, emojis, extra spaces, and mentions except "@MovieCastAgainBot"
+    // Remove links and Telegram usernames, and clean up the caption
     return caption
         .replace(/(?:https?|ftp):\/\/[\n\S]+/g, "") // Remove URLs
-        .replace(/[^\w\s@.]/g, "") // Remove special characters except "@" and "."
-        .replace(/\./g, " ") // Replace dots with a single space
+        .replace(/@[A-Za-z0-9_]+/g, "") // Remove Telegram usernames
+        .replace(/[^\w\s\[\]]/g, "") // Remove special characters except brackets
+        .replace(/\[\]/g, "") // Remove empty brackets
         .replace(/\s\s+/g, " ") // Replace multiple spaces with a single space
-        .replace(/@[A-Za-z0-9_]+/g, "@MovieCastAgainBot") // Replace all mentions with "@MovieCastAgainBot"
         .trim();
 };
 
