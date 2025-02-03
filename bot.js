@@ -3,8 +3,8 @@ const dotenv = require('dotenv');
 const NodeCache = require('node-cache');
 const { Video } = require('./models/video'); // Assuming you have a Video model
 dotenv.config();
-const cache = new NodeCache();
-const userCache = new NodeCache({ stdTTL: 86400 });
+const cache = new NodeCache({ stdTTL: 600 });
+const userCache = new NodeCache({ stdTTL: 300 });
 const { bytesToMB, truncateText } = require('./utils/videoUtils');
 const { deleteMessageAfter } = require('./utils/telegramUtils');
 const { storeVideoData, cleanCaption } = require('./utils/textUtils');
@@ -40,7 +40,40 @@ bot.start(async (ctx) => {
     if (callbackData.startsWith('/start watch_')) {
         // const chatMember = await ctx.telegram.getChatMember('@moviecastmovie', ctx.from.id);
         const videoId = callbackData.split('_')[1]; // Extract video ID from the callback data
+
+
         try {
+
+            const chatMember = await ctx.telegram.getChatMember('@moviecast_movie', ctx.from.id);
+            const isMember = ['member', 'administrator', 'creator'].includes(chatMember.status);
+
+            if (!isMember) {
+                const sentMessage = await ctx.reply(
+                    `🚀 <b>JOIN MOVIE-CAST-CHANNEL TO WATCH MOVIES</b> 🎥\n\n` +
+                    `📢 <i>Unlock premium movies and exclusive content by joining our channel!</i>\n\n` +
+                    `🔹 <b>How to access:</b>\n` +
+                    `1️⃣ Click the "Join Channel" button below.\n` +
+                    `2️⃣ After joining retry.\n\n` +
+                    `🔄 <b>Retry after joining!</b>`,
+                    {
+                        parse_mode: 'HTML',
+                        reply_markup: {
+                            inline_keyboard: [
+                                [
+                                    { text: '✨ JOIN CHANNEL ✨', url: 'https://t.me/moviecast_movie' }
+                                ]
+                            ]
+                        }
+                    }
+                );
+
+                if (sentMessage) {
+                    // Delete the message after 2 minutes
+                    deleteMessageAfter(ctx, sentMessage.message_id, 120);
+                }
+                return;
+            }
+
             if (1 == 1) {
                 const cachedVideo = cache.get(videoId);
                 let video;
@@ -63,7 +96,7 @@ bot.start(async (ctx) => {
                 }
 
                 // Add "Join ➥ @MovieCastAgainBot" to the end of the caption
-                const captionWithLink = `🎥 <b>${video.caption || "NOT AVAILABLE"}    📦 <b>SIZE:</b> ${bytesToMB(video.size)} </b>\n\n⚠️ <b>NOTE:</b> This video will be deleted in 5 minutes, so save or forward it.\n\n✨ <i>Join ➥</i> @moviecastmovie`;
+                const captionWithLink = `🎥 <b>${video.caption || "NOT AVAILABLE"}    📦 <b>SIZE:</b> ${bytesToMB(video.size)} </b>\n\n⚠️ <b>NOTE:</b> This video will be deleted in 5 minutes, so save or forward it.\n\n✨ <i>Join ➥</i> @moviecast_movie`;
                 // Send the video file to the user
                 const sentMessage = await ctx.replyWithVideo(video.fileId, {
                     caption: `${captionWithLink}`,
@@ -88,7 +121,7 @@ bot.start(async (ctx) => {
                                 [
                                     {
                                         text: '✨JOIN CHANNEL✨',
-                                        url: 'https://t.me/moviecastback',
+                                        url: 'https://t.me/moviecast_movie',
                                     },
                                     // Retry button with directional and play emojis
                                     {
@@ -135,7 +168,7 @@ bot.start(async (ctx) => {
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            { text: '🌐 Updates ', url: 'https://t.me/moviecastback' },
+                            { text: '🌐 Updates ', url: 'https://t.me/moviecast_movie' },
                             { text: '🎞️ View Movies', url: 'https://t.me/moviecastmovie' }
                         ]
                     ]
@@ -204,41 +237,41 @@ bot.command('getusers', async (ctx) => {
 });
 
 // Broadcast message to all users (Admins only)
-bot.command('broadcast', async (ctx) => {
+// bot.command('broadcast', async (ctx) => {
 
-    // Fancy response message
-    if (!isAdmin(ctx)) {
-        const sentMessage = await ctx.reply(
-            `🚫 <b>Access Denied!</b>\n\n` +
-            `❌ <i>Sorry, you are not authorized to use this command.</i>`,
-            { parse_mode: 'HTML' }
-        );
-        sentMessage && deleteMessageAfter(ctx, sentMessage.message_id, 3);
-        return;
-    }
+//     // Fancy response message
+//     if (!isAdmin(ctx)) {
+//         const sentMessage = await ctx.reply(
+//             `🚫 <b>Access Denied!</b>\n\n` +
+//             `❌ <i>Sorry, you are not authorized to use this command.</i>`,
+//             { parse_mode: 'HTML' }
+//         );
+//         sentMessage && deleteMessageAfter(ctx, sentMessage.message_id, 3);
+//         return;
+//     }
 
-    const message = ctx.message.text.split(' ').slice(1).join(' ');
-    if (!message) {
-        await ctx.reply('Please provide a message to broadcast.');
-        return;
-    }
+//     const message = ctx.message.text.split(' ').slice(1).join(' ');
+//     if (!message) {
+//         await ctx.reply('Please provide a message to broadcast.');
+//         return;
+//     }
 
-    try {
-        const allUsers = await User.find({});
-        for (const user of allUsers) {
-            try {
-                await ctx.telegram.sendMessage(user.userId, message, { parse_mode: 'HTML' });
-            } catch (error) {
-                console.error(`Failed to send message to user ${user.userId}:`, error);
-            }
-        }
-    } catch (error) {
-        console.error('Error fetching users:', error);
-        await ctx.reply('⚠️ Failed to fetch users. Please try again later.');
-    }
+//     try {
+//         const allUsers = await User.find({});
+//         for (const user of allUsers) {
+//             try {
+//                 await ctx.telegram.sendMessage(user.userId, message, { parse_mode: 'HTML' });
+//             } catch (error) {
+//                 console.error(`Failed to send message to user ${user.userId}:`, error);
+//             }
+//         }
+//     } catch (error) {
+//         console.error('Error fetching users:', error);
+//         await ctx.reply('⚠️ Failed to fetch users. Please try again later.');
+//     }
 
-    await ctx.reply('Broadcast message sent to all users.');
-});
+//     await ctx.reply('Broadcast message sent to all users.');
+// });
 
 bot.command('aichat', async (ctx) => {
 
@@ -440,6 +473,7 @@ bot.on("video", async (ctx) => {
 
 
 bot.hears(/.*/, async (ctx) => {
+    console.log('jo');
     const movieName = ctx.message.text.trim();
     const username = ctx.from.first_name || ctx.from.username || "user";
 
@@ -536,7 +570,7 @@ bot.hears(/.*/, async (ctx) => {
         );
 
         // Automatically delete the message after 2 minutes
-        deleteMessageAfter(ctx, sentMessage.message_id, 60);
+        deleteMessageAfter(ctx, sentMessage.message_id, 180);
     } catch (error) {
         console.error("Error searching for videos:", error);
         const sentMessage = await ctx.reply(
